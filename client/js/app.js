@@ -91,8 +91,10 @@
 
   function updateOrderForm(json) {
     alert("The order total for " + json.order_id + " has been updated to " + json.total);
+    fetchOrders();
+    document.getElementById("add-order-form").reset();
   }
 
   document.getElementById("save").addEventListener("click", onSaveButton);
-
+  fetchOrders();
 })();
