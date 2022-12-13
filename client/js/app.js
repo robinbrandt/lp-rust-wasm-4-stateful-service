@@ -11,7 +11,6 @@
   const subtotalField = document.getElementById("subtotal");
   const shippingAddressField = document.getElementById("shippingAddress");
   const shippingZipField = document.getElementById("shippingZip");
-  const totalField = document.getElementById("total");
 
   function fetchOrders() {
     fetch("http://localhost:8003/orders")
@@ -92,7 +91,6 @@
 
   function updateOrderForm(json) {
     alert("The order total for " + json.order_id + " has been updated to " + json.total);
-    totalField.value = json.total;
   }
 
   document.getElementById("save").addEventListener("click", onSaveButton);
