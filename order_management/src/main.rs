@@ -100,26 +100,27 @@ async fn handle_request(req: Request<Body>, pool: Pool) -> Result<Response<Body>
                     .await?
                     .parse::<f32>()?;
                 order.total = order.subtotal * (1.0 + rate);
+                
+                "INSERT INTO orders (order_id, product_id, quantity, subtotal, shipping_address, shipping_zip, total) VALUES (:order_id, :product_id, :quantity, :subtotal, :shipping_address, :shipping_zip, :total)"
+                    .with(params! {
+                        "order_id" => order.order_id,
+                        "product_id" => order.product_id,
+                        "quantity" => order.quantity,
+                        "subtotal" => order.subtotal,
+                        "shipping_address" => &order.shipping_address,
+                        "shipping_zip" => &order.shipping_zip,
+                        "total" => order.total,
+                    })
+                    .ignore(&mut conn)
+                    .await?;
+
+                drop(conn);
                 Ok(response_build(&serde_json::to_string_pretty(&order)?))
             } else {
                 if rate_resp.status() == StatusCode::NOT_FOUND {
                     Ok(response_build(&String::from("{\"status\":\"error\", \"message\":\"The zip code in the order does not have a corresponding sales tax rate.\"}")))
                 } else {
-                    "INSERT INTO orders (order_id, product_id, quantity, subtotal, shipping_address, shipping_zip, total) VALUES (:order_id, :product_id, :quantity, :subtotal, :shipping_address, :shipping_zip, :total)"
-                        .with(params! {
-                            "order_id" => order.order_id,
-                            "product_id" => order.product_id,
-                            "quantity" => order.quantity,
-                            "subtotal" => order.subtotal,
-                            "shipping_address" => &order.shipping_address,
-                            "shipping_zip" => &order.shipping_zip,
-                            "total" => order.total,
-                        })
-                        .ignore(&mut conn)
-                        .await?;
-
-                    drop(conn);
-                    Ok(response_build(&serde_json::to_string_pretty(&order)?))
+                    Ok(response_build(&String::from("{\"status\":\"error\", \"message\":\"There is an unknown error from the sales tax rate lookup service.\"}")))
                 }
             }
         }
