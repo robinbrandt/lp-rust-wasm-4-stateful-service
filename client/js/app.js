@@ -24,8 +24,7 @@
 
   function init() {
     fetch("http://localhost:8003/init")
-      .then(() => fetchOrders())
-      .catch((e) => displayError(e));
+      .then(() => fetchOrders());
   }
 
   function renderOrders() {
