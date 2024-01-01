@@ -1,15 +1,15 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::net::SocketAddr;
-use std::result::Result;
-use std::convert::Infallible;
-use std::str;
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, StatusCode, Server};
+use hyper::{Body, Method, Request, Response, Server, StatusCode};
 pub use mysql_async::prelude::*;
 pub use mysql_async::*;
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
+use std::net::SocketAddr;
+use std::result::Result;
+use std::str;
 
 lazy_static! {
     static ref SALES_TAX_RATE_SERVICE: String = {
@@ -19,12 +19,11 @@ lazy_static! {
             "http://localhost:8001/find_rate".into()
         }
     };
-
     static ref DATABASE_URL: String = {
         if let Ok(url) = std::env::var("DATABASE_URL") {
             url
         } else {
-            "mysql://root:pass@127.0.0.1:3306/mysql".into()
+            "mysql://app:password@127.0.0.1:3306/app".into()
         }
     };
 }
@@ -90,17 +89,16 @@ async fn handle_request(req: Request<Body>, pool: Pool) -> Result<Response<Body>
             let mut order: Order = serde_json::from_slice(&byte_stream).unwrap();
 
             let client = reqwest::Client::new();
-            let rate_resp = client.post(&*SALES_TAX_RATE_SERVICE)
+            let rate_resp = client
+                .post(&*SALES_TAX_RATE_SERVICE)
                 .body(order.shipping_zip.clone())
                 .send()
                 .await?;
 
             if rate_resp.status().is_success() {
-                let rate = rate_resp.text()
-                    .await?
-                    .parse::<f32>()?;
+                let rate = rate_resp.text().await?.parse::<f32>()?;
                 order.total = order.subtotal * (1.0 + rate);
-                
+
                 "INSERT INTO orders (order_id, product_id, quantity, subtotal, shipping_address, shipping_zip, total) VALUES (:order_id, :product_id, :quantity, :subtotal, :shipping_address, :shipping_zip, :total)"
                     .with(params! {
                         "order_id" => order.order_id,
@@ -130,8 +128,9 @@ async fn handle_request(req: Request<Body>, pool: Pool) -> Result<Response<Body>
 
             let orders = "SELECT * FROM orders"
                 .with(())
-                .map(&mut conn, |(order_id, product_id, quantity, subtotal, shipping_address, shipping_zip, total)| {
-                    Order::new(
+                .map(
+                    &mut conn,
+                    |(
                         order_id,
                         product_id,
                         quantity,
@@ -139,8 +138,19 @@ async fn handle_request(req: Request<Body>, pool: Pool) -> Result<Response<Body>
                         shipping_address,
                         shipping_zip,
                         total,
-                    )},
-                ).await?;
+                    )| {
+                        Order::new(
+                            order_id,
+                            product_id,
+                            quantity,
+                            subtotal,
+                            shipping_address,
+                            shipping_zip,
+                            total,
+                        )
+                    },
+                )
+                .await?;
 
             drop(conn);
             Ok(response_build(serde_json::to_string(&orders)?.as_str()))
@@ -160,7 +170,10 @@ fn response_build(body: &str) -> Response<Body> {
     Response::builder()
         .header("Access-Control-Allow-Origin", "*")
         .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        .header("Access-Control-Allow-Headers", "api,Keep-Alive,User-Agent,Content-Type")
+        .header(
+            "Access-Control-Allow-Headers",
+            "api,Keep-Alive,User-Agent,Content-Type",
+        )
         .body(Body::from(body.to_owned()))
         .unwrap()
 }
